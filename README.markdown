@@ -32,7 +32,7 @@ Quick-start
 ```go
 package main
 
-import log "github.com/cihub/seelog"
+import log "github.com/MenInBack/seelog"
 
 func main() {
     defer log.Flush()
@@ -47,7 +47,7 @@ If you don't have the Go development environment installed, visit the
 [Getting Started](http://golang.org/doc/install.html) document and follow the instructions. Once you're ready, execute the following command:
 
 ```
-go get -u github.com/cihub/seelog
+go get -u github.com/MenInBack/seelog
 ```
 
 *IMPORTANT*: If you are not using the latest release version of Go, check out this [wiki page](https://github.com/cihub/seelog/wiki/Notes-on-'go-get')
@@ -60,15 +60,16 @@ Seelog has github wiki pages, which contain detailed how-tos references: https:/
 Examples
 ---------------
 
-Seelog examples can be found here: [seelog-examples](https://github.com/cihub/seelog-examples)
+Seelog examples can be found here: [seelog-examples](https://github.com/MenInBack/seelog-examples)
 
 Issues
 ---------------
 
-Feel free to push issues that could make Seelog better: https://github.com/cihub/seelog/issues
+Feel free to push issues that could make Seelog better: https://github.com/MenInBack/seelog/issues
 
 Changelog
----------------
+---------
+* **v2.7** : Log into different files by level and date, distinguish filename by date
 * **v2.6** : Config using code and custom formatters
     * Configuration using code in addition to xml (All internal receiver/dispatcher/logger types are now exported).
     * Custom formatters. Check [wiki](https://github.com/cihub/seelog/wiki/Custom-formatters)

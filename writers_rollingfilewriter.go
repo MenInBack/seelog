@@ -25,11 +25,13 @@
 package seelog
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,7 +46,8 @@ import (
 
 // Common constants
 const (
-	rollingLogHistoryDelimiter = "."
+	rollingLogHistoryDelimiter    = "."
+	yyyyMMddInFrontOfLevelPattern = `\w+_2[0-9]{3}[0-1]{1}[0-9]{1}[0-3]{1}[0-9]{1}_(trace|debug|info|error|warn|critical)_\w+`
 )
 
 // Types of the rolling writer: roll by date, by time, etc.
@@ -61,11 +64,13 @@ type rollingNameMode uint8
 const (
 	rollingNameModePostfix = iota
 	rollingNameModePrefix
+	rollingNameModeyyyyMMddInFrontOfLevel
 )
 
 var rollingNameModesStringRepresentation = map[rollingNameMode]string{
-	rollingNameModePostfix: "postfix",
-	rollingNameModePrefix:  "prefix",
+	rollingNameModePostfix:                "postfix",
+	rollingNameModePrefix:                 "prefix",
+	rollingNameModeyyyyMMddInFrontOfLevel: "yyyyMMddInFrontOfLevel",
 }
 
 func rollingNameModeFromString(rollingNameStr string) (rollingNameMode, bool) {
@@ -248,6 +253,38 @@ func newRollingFileWriter(fpath string, rtype rollingType, atype rollingArchiveT
 		rw.currentDirPath = "."
 	}
 
+	// Check if the index is at the end of the filename.
+	if strings.Contains(rw.fileName, "${") && strings.Contains(rw.fileName, "}") {
+		var (
+			fnbuf = new(bytes.Buffer)
+			fnlen = len(rw.fileName)
+		)
+		for i := 0; i <= fnlen-1; i++ {
+			char := rw.fileName[i]
+			if char != '$' {
+				fnbuf.WriteByte(char)
+				continue
+			}
+			// Check if the index is at the end of the filename.
+			if i > fnlen-4 {
+				return nil, fmt.Errorf("filename error: %s cannot be last symbol", "${")
+			}
+			if rw.fileName[i+1] != '{' {
+				fnbuf.WriteRune('$')
+				continue
+			}
+			closeIndex := strings.IndexRune(rw.fileName[i:], '}')
+			parameterName := rw.fileName[i+2 : i+closeIndex]
+			parameterValue := os.Getenv(parameterName) //get custom parameter's value from the os environment variable
+			if len(parameterValue) == 0 {
+				parameterValue = parameterName + "_IS_UNDEFINED"
+			}
+			fnbuf.WriteString(parameterValue)
+			i += closeIndex
+		}
+		rw.fileName = fnbuf.String()
+	}
+
 	rw.rollingType = rtype
 	rw.archiveType = atype
 	rw.archivePath = apath
@@ -266,6 +303,18 @@ func (rw *rollingFileWriter) hasRollName(file string) bool {
 	case rollingNameModePrefix:
 		rname := rollingLogHistoryDelimiter + rw.fileName
 		return strings.HasSuffix(file, rname)
+	case rollingNameModeyyyyMMddInFrontOfLevel:
+		//"trace"
+		//"debug"
+		//"info"
+		//"warn"
+		//"error"
+		//"critical"
+		matched, err := regexp.MatchString(yyyyMMddInFrontOfLevelPattern, file)
+		if err != nil {
+			return false
+		}
+		return matched
 	}
 	return false
 }
@@ -276,8 +325,27 @@ func (rw *rollingFileWriter) createFullFileName(originalName, rollname string) s
 		return originalName + rollingLogHistoryDelimiter + rollname
 	case rollingNameModePrefix:
 		return rollname + rollingLogHistoryDelimiter + originalName
+	case rollingNameModeyyyyMMddInFrontOfLevel:
+		lvlIndex := getFileNameLevelIndex(originalName)
+		if lvlIndex < 0 {
+			return ""
+		}
+		if lvlIndex == 0 {
+			return rollname + "_" + originalName
+		}
+		return originalName[:lvlIndex] + rollname + "_" + originalName[lvlIndex:]
 	}
 	return ""
+}
+
+func getFileNameLevelIndex(filename string) int {
+	for _, s := range levelToStringRepresentations {
+		index := strings.Index(filename, s)
+		if index >= 0 {
+			return index
+		}
+	}
+	return -1
 }
 
 func (rw *rollingFileWriter) getSortedLogHistory() ([]string, error) {
@@ -495,6 +563,12 @@ func (rw *rollingFileWriter) getFileRollName(fileName string) string {
 		return fileName[len(rw.fileName+rollingLogHistoryDelimiter):]
 	case rollingNameModePrefix:
 		return fileName[:len(fileName)-len(rw.fileName+rollingLogHistoryDelimiter)]
+	case rollingNameModeyyyyMMddInFrontOfLevel:
+		lvlIndex := getFileNameLevelIndex(fileName)
+		if lvlIndex < 9 {
+			return ""
+		}
+		return fileName[lvlIndex-9 : lvlIndex-1]
 	}
 	return ""
 }
