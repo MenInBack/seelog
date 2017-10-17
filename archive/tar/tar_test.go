@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cihub/seelog/archive/tar"
-	"github.com/cihub/seelog/io/iotest"
+	"github.com/MenInBack/seelog/archive/tar"
+	"github.com/MenInBack/seelog/io/iotest"
 )
 
 type file struct {
